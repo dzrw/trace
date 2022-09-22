@@ -1,5 +1,7 @@
 package trace
 
+import "errors"
+
 // Package represents the integration point with third-party packages that
 // implement telemetry.  Libraries and other packages that support telemetry
 // should export a top-level function that returns a package-local instance
@@ -29,6 +31,8 @@ func (p *pkgimpl) Bind(r *Router) {
 	p.r = r
 }
 
+var ErrMustUsePackage = errors.New("package not configured")
+
 func (p *pkgimpl) Handler() Handler {
 	switch {
 	case p.h != nil:
@@ -36,7 +40,7 @@ func (p *pkgimpl) Handler() Handler {
 	case p.r != nil:
 		return p.r.Handler()
 	default:
-		panic("package not configured")
+		panic(ErrMustUsePackage)
 	}
 }
 

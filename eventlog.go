@@ -19,19 +19,15 @@ type EventLog struct {
 
 // NewEventLog is intended for logging APIs that want to support a Handler as a
 // backend. Most users won't need it.
-func NewEventLog(t time.Time, level Level, msg string, file string, line int) *EventLog {
+func NewEventLog(t time.Time, level Level, msg string, file string, line int, gid uint64) *EventLog {
 	u := &EventLog{
 		t:     t,
 		level: level,
 		msg:   msg,
 		file:  file,
 		line:  line,
+		gid:   gid,
 	}
-
-	if file != "" {
-		u.gid = __caution__GetGoroutineID()
-	}
-
 	return u
 }
 

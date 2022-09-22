@@ -96,23 +96,24 @@ func (h *TextHandler) Log(tr Tracer, evt *EventLog) error {
 	sb.WriteString(" time=")
 	sb.WriteString(et.Format(RFC3339Ms))
 
+	sb.WriteString(" trace=")
+	sb.WriteString(tr.ID().String())
+
+	if gid := evt.Goroutine(); gid > 0 {
+		sb.WriteString(" [")
+		sb.WriteString(fmt.Sprint(gid))
+		sb.WriteString("]")
+	}
+
 	sb.WriteString(" level=")
 	sb.WriteString(el.String())
 
 	if file, line := evt.SourceLine(); file != "" {
-		sb.WriteString(" source=")
+		sb.WriteString(" file=")
 		sb.WriteString(file)
 		sb.WriteRune(':')
 		sb.WriteString(strconv.Itoa(line))
 	}
-
-	if gid := evt.Goroutine(); gid > 0 {
-		sb.WriteString(" G=")
-		sb.WriteString(fmt.Sprint(gid))
-	}
-
-	sb.WriteString(" trace=\"")
-	sb.WriteString(tr.ID().String())
 
 	sb.WriteString(" msg=")
 	sb.WriteString(quote(evt.Message()))
@@ -155,6 +156,8 @@ func (h *TextHandler) Log(tr Tracer, evt *EventLog) error {
 		sb.WriteString(str)
 	}
 
+	sb.WriteString("\n")
+
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	p := []byte(sb.String())
@@ -170,8 +173,8 @@ func quote(s string) string {
 }
 
 func (h *TextHandler) Count(tr Tracer, p Probe, v int64, attrs ...Attr) error {
-	evt := NewEventLog(time.Now(), InfoLevel, "COUNT", "", 0)
-	evt.AddAttr(String(p.String(), fmt.Sprint(v)))
+	evt := NewEventLog(time.Now(), InfoLevel, p.String(), "", 0, 0)
+	evt.AddAttr(String("count", fmt.Sprint(v)))
 	for _, a := range attrs {
 		evt.AddAttr(a)
 	}
@@ -179,8 +182,8 @@ func (h *TextHandler) Count(tr Tracer, p Probe, v int64, attrs ...Attr) error {
 }
 
 func (h *TextHandler) Gauge(tr Tracer, p Probe, v int64, attrs ...Attr) error {
-	evt := NewEventLog(time.Now(), InfoLevel, "GAUGE", "", 0)
-	evt.AddAttr(String(p.String(), fmt.Sprint(v)))
+	evt := NewEventLog(time.Now(), InfoLevel, p.String(), "", 0, 0)
+	evt.AddAttr(String("gauge", fmt.Sprint(v)))
 	for _, a := range attrs {
 		evt.AddAttr(a)
 	}

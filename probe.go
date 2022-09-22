@@ -10,7 +10,7 @@ var errUnresolved = errors.New("missing or unresolvable probe")
 
 type Probe interface {
 	fmt.Stringer
-	Level() Level
+	Enabled(l Level) bool
 }
 
 type ProbeC interface {

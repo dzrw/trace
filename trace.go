@@ -50,10 +50,12 @@ type Trace[T ProbeC] interface {
 // New creates and returns a Span.
 func New[T ProbeC](pkg Package, name string) Trace[T] {
 	tr := &traceimpl[T]{
-		pkg:  pkg,
-		id:   ksuid.New(),
-		name: name,
-		then: time.Now(),
+		pkg:    pkg,
+		id:     ksuid.New(),
+		name:   name,
+		then:   time.Now(),
+		counts: make(map[Probe]int64),
+		gauges: make(map[Probe]int64),
 	}
 
 	if pkg.CaptureSourceInfo() {
@@ -83,8 +85,8 @@ type traceimpl[T ProbeC] struct {
 	line     int
 	funcName string
 
-	counters map[Probe]int64
-	gauges   map[Probe]int64
+	counts map[Probe]int64
+	gauges map[Probe]int64
 }
 
 func (tr *traceimpl[T]) ID() ksuid.KSUID {
@@ -98,7 +100,7 @@ func (tr *traceimpl[T]) Name() string {
 func (tr *traceimpl[T]) Finish() {
 	tr.duration = time.Since(tr.then)
 	if h := tr.pkg.Handler(); h != nil {
-		for p, val := range tr.counters {
+		for p, val := range tr.counts {
 			h.Count(tr, p, val)
 		}
 		for p, val := range tr.gauges {
@@ -109,37 +111,51 @@ func (tr *traceimpl[T]) Finish() {
 
 func (tr *traceimpl[T]) Error(probe T, err error, attrs ...Attr) {
 	attrs = append(attrs, Any("error", err))
-	tr.Log(probe, ErrorLevel, attrs...)
+	tr.log(2, probe, ErrorLevel, attrs...)
 }
 
 func (tr *traceimpl[T]) Warn(probe T, attrs ...Attr) {
-	tr.Log(probe, WarnLevel, attrs...)
+	tr.log(2, probe, WarnLevel, attrs...)
 }
 
 func (tr *traceimpl[T]) Info(probe T, attrs ...Attr) {
-	tr.Log(probe, InfoLevel, attrs...)
+	tr.log(2, probe, InfoLevel, attrs...)
 }
 
 func (tr *traceimpl[T]) Debug(probe T, attrs ...Attr) {
-	tr.Log(probe, DebugLevel, attrs...)
+	tr.log(2, probe, DebugLevel, attrs...)
 }
 
 func (tr *traceimpl[T]) Log(probe T, level Level, attrs ...Attr) {
-	if level <= probe.Level() {
+	tr.log(2, probe, level, attrs...)
+}
+
+func (tr *traceimpl[T]) log(skip int, probe T, level Level, attrs ...Attr) {
+	if probe.Enabled(level) {
 		if h := tr.pkg.Handler(); h != nil && h.Enabled(level) {
-			var file = ""
-			var line = 0
-			h.Log(tr, NewEventLog(time.Now(), level, probe.String(), file, line))
+			var file string
+			var line int
+			var gid uint64
+			if tr.pkg.CaptureSourceInfo() {
+				_, file, line, _ = runtime.Caller(skip)
+				gid = __caution__GetGoroutineID()
+			}
+
+			evt := NewEventLog(time.Now(), level, probe.String(), file, line, gid)
+			for _, a := range attrs {
+				evt.AddAttr(a)
+			}
+			h.Log(tr, evt)
 		}
 	}
 }
 
 func (tr *traceimpl[T]) Count(probe T, delta int64) (val int64) {
 	val = delta
-	if v, ok := tr.counters[probe]; ok {
+	if v, ok := tr.counts[probe]; ok {
 		val = val + v
 	}
-	tr.counters[probe] = val
+	tr.counts[probe] = val
 	return
 }
 
