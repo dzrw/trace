@@ -2,8 +2,11 @@ package trace
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
+
+const RFC3339Milli = "2006-01-02T15:04:05.999Z07:00"
 
 // HACK: This is a dirty copy of the `slog` proposal.
 
@@ -34,7 +37,7 @@ will return Int(1).
 */
 func Any(key string, value any) Attr {
 	u := value
-	return Attr{key: key, val: &u, kind: AnyKind}
+	return Attr{key: key, val: u, kind: AnyKind}
 }
 
 // Bool returns an Attr for a bool.
@@ -104,8 +107,36 @@ func (a Attr) Float64() float64 {
 
 // Format implements fmt.Formatter. It formats a Attr as "KEY=VALUE".
 func (a Attr) Format(s fmt.State, verb rune) {
-	str := fmt.Sprint(a.key, "=", a.val)
-	s.Write([]byte(str))
+	if !a.HasValue() {
+		return
+	}
+
+	sb := strings.Builder{}
+	sb.WriteString(a.Key())
+	sb.WriteRune('=')
+
+	switch a.Kind() {
+	case AnyKind:
+		sb.WriteString(fmt.Sprint(a.Value()))
+	case BoolKind:
+		sb.WriteString(fmt.Sprint(a.Bool()))
+	case DurationKind:
+		sb.WriteString(fmt.Sprint(a.Duration()))
+	case Float64Kind:
+		sb.WriteString(fmt.Sprint(a.Float64()))
+	case Int64Kind:
+		sb.WriteString(fmt.Sprint(a.Int64()))
+	case StringKind:
+		sb.WriteString(fmt.Sprint(a.String()))
+	case TimeKind:
+		sb.WriteString(a.Time().Format(RFC3339Milli))
+	case Uint64Kind:
+		sb.WriteString(fmt.Sprint(a.Uint64()))
+	default:
+		panic(ErrKind)
+	}
+
+	s.Write([]byte(sb.String()))
 }
 
 // HasValue returns true if the Attr has a value.

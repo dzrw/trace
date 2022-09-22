@@ -29,7 +29,7 @@ func (state *State) Flag(c int) bool {
 }
 
 func (state *State) Bytes() []byte {
-	return state.Bytes()
+	return state.buf.Bytes()
 }
 
 func (state *State) String() string {

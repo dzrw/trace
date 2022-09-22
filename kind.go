@@ -1,5 +1,9 @@
 package trace
 
+import "errors"
+
+var ErrKind = errors.New("unsupported kind")
+
 // Kind is the kind of an Attr's value.
 type Kind int
 
