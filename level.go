@@ -16,6 +16,7 @@ const (
 	WarnLevel              Level = 20
 	InfoLevel              Level = 30
 	DebugLevel             Level = 31
+	NoiseLevel             Level = 99
 )
 
 /*

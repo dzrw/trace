@@ -17,7 +17,7 @@ type Trace[T ProbeC] interface {
 	Tracer
 
 	// Error writes an event log associated with a span.
-	Error(probe T, err error, attrs ...Attr)
+	Error(probe T, attrs ...Attr)
 
 	// Warn writes an event log associated with a span.
 	Warn(probe T, attrs ...Attr)
@@ -32,6 +32,11 @@ type Trace[T ProbeC] interface {
 	// to the Logger associated with the package. If telemetry is not configured,
 	// this operation is a nop.
 	Log(probe T, level Level, attrs ...Attr)
+
+	// Assert that the conditions represented by the Attrs hold. If not, log
+	// an event associated with the trace at the AssertionViolated level;
+	// otherwise, log an event at the specified level.
+	Assert(probe T, level Level, attrs ...Attr)
 
 	// Count updates a counter associated with a span. Counters are flushed when
 	// the span is closed. If telemetry is not configured, this operation is a nop.
@@ -109,8 +114,7 @@ func (tr *traceimpl[T]) Finish() {
 	}
 }
 
-func (tr *traceimpl[T]) Error(probe T, err error, attrs ...Attr) {
-	attrs = append(attrs, Any("error", err))
+func (tr *traceimpl[T]) Error(probe T, attrs ...Attr) {
 	tr.log(2, probe, ErrorLevel, attrs...)
 }
 
@@ -131,8 +135,8 @@ func (tr *traceimpl[T]) Log(probe T, level Level, attrs ...Attr) {
 }
 
 func (tr *traceimpl[T]) log(skip int, probe T, level Level, attrs ...Attr) {
-	if lvl := boost(level, attrs); probe.Enabled(lvl) {
-		if h := tr.pkg.Handler(); h != nil && h.Enabled(lvl) {
+	if probe.Enabled(level) {
+		if h := tr.pkg.Handler(); h != nil && h.Enabled(level) {
 			var file string
 			var line int
 			var gid uint64
@@ -141,7 +145,7 @@ func (tr *traceimpl[T]) log(skip int, probe T, level Level, attrs ...Attr) {
 				gid = __caution__GetGoroutineID()
 			}
 
-			evt := NewEventLog(time.Now(), lvl, probe.String(), file, line, gid)
+			evt := NewEventLog(time.Now(), level, probe.String(), file, line, gid)
 			for _, a := range attrs {
 				evt.AddAttr(a)
 			}
@@ -150,15 +154,14 @@ func (tr *traceimpl[T]) log(skip int, probe T, level Level, attrs ...Attr) {
 	}
 }
 
-func boost(level Level, attrs []Attr) Level {
-	if level > ErrorLevel {
-		for _, a := range attrs {
-			if !a.Condition() {
-				return AssertionViolatedLevel
-			}
+func (tr *traceimpl[T]) Assert(probe T, level Level, attrs ...Attr) {
+	for _, a := range attrs {
+		if !a.Condition() {
+			level = AssertionViolatedLevel
+			break
 		}
 	}
-	return level
+	tr.log(2, probe, level, attrs...)
 }
 
 func (tr *traceimpl[T]) Count(probe T, delta int64) (val int64) {
