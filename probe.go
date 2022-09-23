@@ -13,7 +13,19 @@ type Probe interface {
 	Enabled(l Level) bool
 }
 
-type ProbeC interface {
-	~int16
-	Probe
+func NewProbe(text string, minLevel Level) Probe {
+	return &probe{text, minLevel}
+}
+
+type probe struct {
+	text     string
+	minLevel Level
+}
+
+func (p *probe) Enabled(l Level) bool {
+	return l <= p.minLevel
+}
+
+func (p *probe) String() string {
+	return p.text
 }

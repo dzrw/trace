@@ -16,13 +16,13 @@ type Handler interface {
 	Enabled(Level) bool
 
 	// Log handles an event associated with a trace.
-	Log(Tracer, *EventLog) error
+	Log(Trace, *EventLog) error
 
 	// Count handles a counter associated with a trace.
-	Count(Tracer, Probe, int64, ...Attr) error
+	Count(Trace, Probe, int64, ...Attr) error
 
 	// Gauge handles a gauge associated with a trace.
-	Gauge(Tracer, Probe, int64, ...Attr) error
+	Gauge(Trace, Probe, int64, ...Attr) error
 
 	// With returns a new Handler whose attributes consist of
 	// the receiver's attributes concatenated with the arguments.
@@ -81,7 +81,7 @@ type:
 Each call to Handle results in a single, mutex-protected call to
 io.Writer.Write.
 */
-func (h *TextHandler) Log(tr Tracer, evt *EventLog) error {
+func (h *TextHandler) Log(tr Trace, evt *EventLog) error {
 	const RFC3339Ms = "2006-01-02T15:04:05.999Z07:00"
 
 	et := evt.Time()
@@ -141,7 +141,7 @@ func quote(s string) string {
 	return s
 }
 
-func (h *TextHandler) Count(tr Tracer, p Probe, v int64, attrs ...Attr) error {
+func (h *TextHandler) Count(tr Trace, p Probe, v int64, attrs ...Attr) error {
 	evt := NewEventLog(time.Now(), InfoLevel, p.String(), "", 0, 0)
 	evt.AddAttr(String("count", fmt.Sprint(v)))
 	for _, a := range attrs {
@@ -150,7 +150,7 @@ func (h *TextHandler) Count(tr Tracer, p Probe, v int64, attrs ...Attr) error {
 	return h.Log(tr, evt)
 }
 
-func (h *TextHandler) Gauge(tr Tracer, p Probe, v int64, attrs ...Attr) error {
+func (h *TextHandler) Gauge(tr Trace, p Probe, v int64, attrs ...Attr) error {
 	evt := NewEventLog(time.Now(), InfoLevel, p.String(), "", 0, 0)
 	evt.AddAttr(String("gauge", fmt.Sprint(v)))
 	for _, a := range attrs {

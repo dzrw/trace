@@ -24,7 +24,7 @@ func (h *LogrusHandler) Enabled(l trace.Level) bool {
 	return l <= h.minLevel
 }
 
-func (h *LogrusHandler) Log(tr trace.Tracer, evt *trace.EventLog) error {
+func (h *LogrusHandler) Log(tr trace.Trace, evt *trace.EventLog) error {
 	if evt.Time().IsZero() || evt.Level() == 0 {
 		return nil
 	}
@@ -46,7 +46,7 @@ func (h *LogrusHandler) Log(tr trace.Tracer, evt *trace.EventLog) error {
 	return nil
 }
 
-func (h *LogrusHandler) Count(tr trace.Tracer, p trace.Probe, delta int64, attrs ...trace.Attr) error {
+func (h *LogrusHandler) Count(tr trace.Trace, p trace.Probe, delta int64, attrs ...trace.Attr) error {
 	evt := trace.NewEventLog(time.Now(), trace.InfoLevel, p.String(), "", 0, 0)
 	evt.AddAttr(trace.String("count", fmt.Sprint(delta)))
 	for _, a := range attrs {
@@ -55,7 +55,7 @@ func (h *LogrusHandler) Count(tr trace.Tracer, p trace.Probe, delta int64, attrs
 	return h.Log(tr, evt)
 }
 
-func (h *LogrusHandler) Gauge(tr trace.Tracer, p trace.Probe, value int64, attrs ...trace.Attr) error {
+func (h *LogrusHandler) Gauge(tr trace.Trace, p trace.Probe, value int64, attrs ...trace.Attr) error {
 	evt := trace.NewEventLog(time.Now(), trace.InfoLevel, p.String(), "", 0, 0)
 	evt.AddAttr(trace.String("gauge", fmt.Sprint(value)))
 	for _, a := range attrs {
