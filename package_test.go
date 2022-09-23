@@ -105,7 +105,7 @@ func TestPackageUsage(t *testing.T) {
 	r := trace.NewRouter(NewTestHandler(t, trace.DebugLevel), false)
 	r.Use(pkg)
 
-	tr := trace.New[TestProbe](pkg, "usage test")
+	tr := trace.New[TestProbe](pkg).Title("usage test")
 	tr.Debug(ProbeFoo, trace.Int("id", 1))
 
 	tr.Debug(ProbeBar) // this should not appear

@@ -9,12 +9,14 @@ import (
 
 type Tracer interface {
 	ID() ksuid.KSUID // ID returns the unique identifier for the trace
-	Name() string    // Name returns the title of the trace
 	Finish()         // Finish closes the trace
 }
 
 type Trace[T ProbeC] interface {
 	Tracer
+
+	// Title sets the title of the trace
+	Title(title string) Trace[T]
 
 	// Error writes an event log associated with a span.
 	Error(probe T, attrs ...Attr)
@@ -53,12 +55,13 @@ type Trace[T ProbeC] interface {
 }
 
 // New creates and returns a Span.
-func New[T ProbeC](pkg Package, name string) Trace[T] {
+func New[T ProbeC](pkg Package, attrs ...Attr) Trace[T] {
 	tr := &traceimpl[T]{
 		pkg:    pkg,
 		id:     ksuid.New(),
-		name:   name,
+		title:  "anonymous",
 		then:   time.Now(),
+		attrs:  attrs,
 		counts: make(map[Probe]int64),
 		gauges: make(map[Probe]int64),
 	}
@@ -81,9 +84,10 @@ func New[T ProbeC](pkg Package, name string) Trace[T] {
 type traceimpl[T ProbeC] struct {
 	pkg      Package
 	id       ksuid.KSUID
-	name     string
+	title    string
 	then     time.Time
 	duration time.Duration
+	attrs    []Attr
 
 	gid      uint64 // goroutine identifier
 	file     string
@@ -98,8 +102,9 @@ func (tr *traceimpl[T]) ID() ksuid.KSUID {
 	return tr.id
 }
 
-func (tr *traceimpl[T]) Name() string {
-	return tr.name
+func (tr *traceimpl[T]) Title(title string) Trace[T] {
+	tr.title = title
+	return tr
 }
 
 func (tr *traceimpl[T]) Finish() {
@@ -148,6 +153,9 @@ func (tr *traceimpl[T]) log(skip int, probe T, level Level, attrs ...Attr) {
 			evt := NewEventLog(time.Now(), level, probe.String(), file, line, gid)
 			for _, a := range attrs {
 				evt.AddAttr(a)
+			}
+			for _, b := range tr.attrs {
+				evt.AddAttr(b)
 			}
 			h.Log(tr, evt)
 		}
