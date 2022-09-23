@@ -1,7 +1,6 @@
 package trace_test
 
 import (
-	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -18,9 +17,9 @@ func TestBool(t *testing.T) {
 
 func TestFormatBool(t *testing.T) {
 	a := trace.Bool("foo", true)
-	s := &State{}
-	a.Format(s, ' ')
-	require.Equal(t, "foo=true", s.String())
+	k, v := a.Format()
+	require.Equal(t, a.Key(), k)
+	require.Equal(t, "true", v)
 }
 
 func TestDuration(t *testing.T) {
@@ -31,9 +30,9 @@ func TestDuration(t *testing.T) {
 
 func TestFormatDuration(t *testing.T) {
 	a := trace.Duration("foo", time.Hour)
-	s := &State{}
-	a.Format(s, ' ')
-	require.Equal(t, "foo=1h0m0s", s.String())
+	k, v := a.Format()
+	require.Equal(t, a.Key(), k)
+	require.Equal(t, "1h0m0s", v)
 }
 
 func TestFloat64(t *testing.T) {
@@ -44,9 +43,9 @@ func TestFloat64(t *testing.T) {
 
 func TestFormatFloat64(t *testing.T) {
 	a := trace.Float64("foo", math.Pi)
-	s := &State{}
-	a.Format(s, ' ')
-	require.Equal(t, "foo=3.141592653589793", s.String())
+	k, v := a.Format()
+	require.Equal(t, a.Key(), k)
+	require.Equal(t, "3.141592653589793", v)
 }
 
 func TestInt64(t *testing.T) {
@@ -57,9 +56,9 @@ func TestInt64(t *testing.T) {
 
 func TestFormatInt64(t *testing.T) {
 	a := trace.Int64("foo", math.MaxInt64)
-	s := &State{}
-	a.Format(s, ' ')
-	require.Equal(t, "foo=9223372036854775807", s.String())
+	k, v := a.Format()
+	require.Equal(t, a.Key(), k)
+	require.Equal(t, "9223372036854775807", v)
 }
 
 func TestString(t *testing.T) {
@@ -70,9 +69,9 @@ func TestString(t *testing.T) {
 
 func TestFormatString(t *testing.T) {
 	a := trace.String("foo", "bar")
-	s := &State{}
-	a.Format(s, ' ')
-	require.Equal(t, "foo=bar", s.String())
+	k, v := a.Format()
+	require.Equal(t, a.Key(), k)
+	require.Equal(t, "bar", v)
 }
 
 func TestTime(t *testing.T) {
@@ -84,12 +83,12 @@ func TestTime(t *testing.T) {
 
 func TestFormatTime(t *testing.T) {
 	value := time.Now()
-	expected := fmt.Sprintf("foo=%s", value.Format(trace.RFC3339Milli))
+	expected := value.Format(trace.RFC3339Milli)
 
 	a := trace.Time("foo", value)
-	s := &State{}
-	a.Format(s, ' ')
-	require.Equal(t, expected, s.String())
+	k, v := a.Format()
+	require.Equal(t, a.Key(), k)
+	require.Equal(t, expected, v)
 }
 
 func TestUint64(t *testing.T) {
@@ -100,9 +99,9 @@ func TestUint64(t *testing.T) {
 
 func TestFormatUint64(t *testing.T) {
 	a := trace.Uint64("foo", math.MaxUint64)
-	s := &State{}
-	a.Format(s, ' ')
-	require.Equal(t, "foo=18446744073709551615", s.String())
+	k, v := a.Format()
+	require.Equal(t, a.Key(), k)
+	require.Equal(t, "18446744073709551615", v)
 }
 
 type astruct struct{}
@@ -126,10 +125,8 @@ func TestAny(t *testing.T) {
 
 func TestFormatAny(t *testing.T) {
 	val := &astruct{}
-	expected := fmt.Sprintf("foo=%s", val)
-
 	a := trace.Any("foo", val)
-	s := &State{}
-	a.Format(s, ' ')
-	require.Equal(t, expected, s.String())
+	k, v := a.Format()
+	require.Equal(t, a.Key(), k)
+	require.Equal(t, val.String(), v)
 }

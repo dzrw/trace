@@ -1,7 +1,6 @@
 package trace
 
 import (
-	"encoding"
 	"fmt"
 	"io"
 	"strconv"
@@ -119,41 +118,11 @@ func (h *TextHandler) Log(tr Tracer, evt *EventLog) error {
 	sb.WriteString(quote(evt.Message()))
 
 	for _, attr := range evt.Attrs() {
-		var str string
-		switch attr.Kind() {
-		case AnyKind:
-			if v := attr.Value(); v == nil {
-				continue
-			} else if m, ok := attr.Value().(encoding.TextMarshaler); ok {
-				text, err := m.MarshalText()
-				if err != nil {
-					str = err.Error()
-				} else {
-					str = string(text)
-				}
-			} else {
-				str = fmt.Sprint(attr.Value())
-			}
-		case BoolKind:
-			str = fmt.Sprint(attr.Bool())
-		case DurationKind:
-			str = fmt.Sprint(attr.Duration())
-		case Float64Kind:
-			str = fmt.Sprint(attr.Float64())
-		case Int64Kind:
-			str = fmt.Sprint(attr.Int64())
-		case StringKind:
-			str = quote(attr.String())
-		case TimeKind:
-			str = attr.Time().Format(RFC3339Ms)
-		case Uint64Kind:
-			str = fmt.Sprint(attr.Uint64())
-		}
-
+		k, v := attr.Format()
 		sb.WriteRune(' ')
-		sb.WriteString(attr.Key())
+		sb.WriteString(k)
 		sb.WriteRune('=')
-		sb.WriteString(str)
+		sb.WriteString(v)
 	}
 
 	sb.WriteString("\n")

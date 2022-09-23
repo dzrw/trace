@@ -1,8 +1,8 @@
 package trace
 
 import (
+	"encoding"
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -105,38 +105,43 @@ func (a Attr) Float64() float64 {
 	return *(a.val.(*float64))
 }
 
-// Format implements fmt.Formatter. It formats a Attr as "KEY=VALUE".
-func (a Attr) Format(s fmt.State, verb rune) {
-	if !a.HasValue() {
-		return
-	}
-
-	sb := strings.Builder{}
-	sb.WriteString(a.Key())
-	sb.WriteRune('=')
+// Format returns the Attr's key and value properties as strings.
+func (a Attr) Format() (key, value string) {
+	key = a.key
 
 	switch a.Kind() {
-	case AnyKind:
-		sb.WriteString(fmt.Sprint(a.Value()))
 	case BoolKind:
-		sb.WriteString(fmt.Sprint(a.Bool()))
+		value = fmt.Sprint(a.Bool())
 	case DurationKind:
-		sb.WriteString(fmt.Sprint(a.Duration()))
+		value = fmt.Sprint(a.Duration())
 	case Float64Kind:
-		sb.WriteString(fmt.Sprint(a.Float64()))
+		value = fmt.Sprint(a.Float64())
 	case Int64Kind:
-		sb.WriteString(fmt.Sprint(a.Int64()))
+		value = fmt.Sprint(a.Int64())
 	case StringKind:
-		sb.WriteString(fmt.Sprint(a.String()))
+		value = a.String()
 	case TimeKind:
-		sb.WriteString(a.Time().Format(RFC3339Milli))
+		value = a.Time().Format(RFC3339Milli)
 	case Uint64Kind:
-		sb.WriteString(fmt.Sprint(a.Uint64()))
+		value = fmt.Sprint(a.Uint64())
+	case AnyKind:
+		fallthrough
 	default:
-		panic(ErrKind)
+		if v := a.Value(); v != nil {
+			if m, ok := v.(encoding.TextMarshaler); ok {
+				text, err := m.MarshalText()
+				if err != nil {
+					panic(err)
+				}
+				value = string(text)
+				return
+			}
+			value = fmt.Sprint(v)
+			return
+		}
+		value = ""
 	}
-
-	s.Write([]byte(sb.String()))
+	return
 }
 
 // HasValue returns true if the Attr has a value.
