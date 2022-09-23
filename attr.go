@@ -52,6 +52,11 @@ func Duration(key string, value time.Duration) Attr {
 	return Attr{key: key, val: &u, kind: DurationKind}
 }
 
+// Error returns an Attr named "error" for an error.
+func Error(err error) Attr {
+	return Any("error", err)
+}
+
 // Float64 returns an Attr for a floating-point number.
 func Float64(key string, value float64) Attr {
 	u := value
@@ -97,6 +102,12 @@ func (a Attr) Bool() bool {
 // is not a time.Duration.
 func (a Attr) Duration() time.Duration {
 	return *(a.val.(*time.Duration))
+}
+
+// Error returns the Attr's value as a error. It panics if the value is not
+// an error.
+func (a Attr) Error() error {
+	return a.Value().(error)
 }
 
 // Float64 returns the Attr's value as a float64. It panics if the value is not

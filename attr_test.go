@@ -1,6 +1,7 @@
 package trace_test
 
 import (
+	"errors"
 	"math"
 	"testing"
 	"time"
@@ -33,6 +34,21 @@ func TestFormatDuration(t *testing.T) {
 	k, v := a.Format()
 	require.Equal(t, a.Key(), k)
 	require.Equal(t, "1h0m0s", v)
+}
+
+func TestError(t *testing.T) {
+	err := errors.New("test error")
+	a := trace.Error(err)
+	require.NotNil(t, a)
+	require.Equal(t, err, a.Error())
+}
+
+func TestFormatError(t *testing.T) {
+	err := errors.New("test error")
+	a := trace.Error(err)
+	k, v := a.Format()
+	require.Equal(t, a.Key(), k)
+	require.Equal(t, err.Error(), v)
 }
 
 func TestFloat64(t *testing.T) {
