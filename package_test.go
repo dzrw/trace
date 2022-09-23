@@ -67,9 +67,9 @@ func TestPackageRouterConfig(t *testing.T) {
 }
 
 var (
-	probeFoo = trace.NewProbe("foo", trace.DebugLevel)
-	probeBar = trace.NewProbe("bar", trace.InfoLevel)
-	probeErr = trace.NewProbe("err", trace.ErrorLevel)
+	probeFoo = trace.NewProbe("foo")
+	probeBar = trace.NewProbe("bar")
+	probeErr = trace.NewProbe("err")
 )
 
 func TestPackageUsage(t *testing.T) {

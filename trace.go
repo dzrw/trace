@@ -136,7 +136,7 @@ func (tr *traceimpl) Log(probe Probe, level Level, attrs ...Attr) {
 }
 
 func (tr *traceimpl) log(skip int, probe Probe, level Level, attrs ...Attr) {
-	if probe.Enabled(level) {
+	if tr.pkg.Enabled(probe) {
 		if h := tr.pkg.Handler(); h != nil && h.Enabled(level) {
 			var file string
 			var line int
