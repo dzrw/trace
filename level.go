@@ -11,10 +11,11 @@ type Level int
 
 // Names for common levels.
 const (
-	ErrorLevel Level = 10
-	WarnLevel  Level = 20
-	InfoLevel  Level = 30
-	DebugLevel Level = 31
+	ErrorLevel             Level = 10
+	AssertionViolatedLevel Level = 11
+	WarnLevel              Level = 20
+	InfoLevel              Level = 30
+	DebugLevel             Level = 31
 )
 
 /*
@@ -31,6 +32,8 @@ func (l Level) String() string {
 		return strconv.Itoa(int(l))
 	case l == ErrorLevel:
 		return "ERROR"
+	case l == AssertionViolatedLevel:
+		return "ASSERT"
 	case l < WarnLevel:
 		sb := strings.Builder{}
 		sb.WriteString("ERROR-")

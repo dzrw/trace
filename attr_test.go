@@ -77,6 +77,27 @@ func TestFormatInt64(t *testing.T) {
 	require.Equal(t, "9223372036854775807", v)
 }
 
+func TestNoError(t *testing.T) {
+	err := errors.New("test error")
+	a := trace.NoError(err)
+	require.NotNil(t, a)
+	require.Equal(t, err, a.Error())
+	require.False(t, a.Condition())
+
+	b := trace.NoError(nil)
+	require.NotNil(t, b)
+	require.False(t, b.HasValue())
+	require.True(t, b.Condition())
+}
+
+func TestFormatNoError(t *testing.T) {
+	err := errors.New("test error")
+	a := trace.NoError(err)
+	k, v := a.Format()
+	require.Equal(t, a.Key(), k)
+	require.Equal(t, err.Error(), v)
+}
+
 func TestString(t *testing.T) {
 	a := trace.String("foo", "bar")
 	require.NotNil(t, a)

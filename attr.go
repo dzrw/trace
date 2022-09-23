@@ -54,7 +54,8 @@ func Duration(key string, value time.Duration) Attr {
 
 // Error returns an Attr named "error" for an error.
 func Error(err error) Attr {
-	return Any("error", err)
+	u := err
+	return Attr{key: "error", val: u, kind: ErrorKind}
 }
 
 // Float64 returns an Attr for a floating-point number.
@@ -73,6 +74,12 @@ func Int(key string, value int) Attr {
 func Int64(key string, value int64) Attr {
 	u := value
 	return Attr{key: key, val: &u, kind: Int64Kind}
+}
+
+// NoError returns an Attr that represents the assertion that err is nil.
+func NoError(err error) Attr {
+	u := err
+	return Attr{key: "error", val: u, kind: NoErrorKind}
 }
 
 // String returns a new Attr for a string.
@@ -96,6 +103,17 @@ func Uint64(key string, value uint64) Attr {
 // bool.
 func (a Attr) Bool() bool {
 	return *(a.val.(*bool))
+}
+
+// Condition determines whether the Attr represents a condition and whether
+// that condition holds.
+func (a Attr) Condition() bool {
+	switch a.Kind() {
+	case NoErrorKind:
+		return !a.HasValue()
+	default:
+		return true
+	}
 }
 
 // Duration returns the Attr's value as a time.Duration. It panics if the value
@@ -135,7 +153,7 @@ func (a Attr) Format() (key, value string) {
 		value = a.Time().Format(RFC3339Milli)
 	case Uint64Kind:
 		value = fmt.Sprint(a.Uint64())
-	case AnyKind:
+	case AnyKind, ErrorKind, NoErrorKind:
 		fallthrough
 	default:
 		if v := a.Value(); v != nil {

@@ -11,8 +11,10 @@ const (
 	AnyKind Kind = iota
 	BoolKind
 	DurationKind
+	ErrorKind
 	Float64Kind
 	Int64Kind
+	NoErrorKind
 	StringKind
 	TimeKind
 	Uint64Kind
@@ -28,6 +30,8 @@ func (k Kind) String() string {
 		return "float64"
 	case Int64Kind:
 		return "int64"
+	case ErrorKind, NoErrorKind:
+		return "error"
 	case StringKind:
 		return "string"
 	case TimeKind:

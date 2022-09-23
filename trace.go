@@ -131,8 +131,8 @@ func (tr *traceimpl[T]) Log(probe T, level Level, attrs ...Attr) {
 }
 
 func (tr *traceimpl[T]) log(skip int, probe T, level Level, attrs ...Attr) {
-	if probe.Enabled(level) {
-		if h := tr.pkg.Handler(); h != nil && h.Enabled(level) {
+	if lvl := boost(level, attrs); probe.Enabled(lvl) {
+		if h := tr.pkg.Handler(); h != nil && h.Enabled(lvl) {
 			var file string
 			var line int
 			var gid uint64
@@ -141,13 +141,24 @@ func (tr *traceimpl[T]) log(skip int, probe T, level Level, attrs ...Attr) {
 				gid = __caution__GetGoroutineID()
 			}
 
-			evt := NewEventLog(time.Now(), level, probe.String(), file, line, gid)
+			evt := NewEventLog(time.Now(), lvl, probe.String(), file, line, gid)
 			for _, a := range attrs {
 				evt.AddAttr(a)
 			}
 			h.Log(tr, evt)
 		}
 	}
+}
+
+func boost(level Level, attrs []Attr) Level {
+	if level > ErrorLevel {
+		for _, a := range attrs {
+			if !a.Condition() {
+				return AssertionViolatedLevel
+			}
+		}
+	}
+	return level
 }
 
 func (tr *traceimpl[T]) Count(probe T, delta int64) (val int64) {
