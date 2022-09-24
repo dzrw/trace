@@ -4,37 +4,46 @@ import (
 	"sync"
 )
 
-// Router steers telemetry from Packages into backends.
-type Router struct {
-	sourceInfo bool
-	handler    Handler
-	pkgmu      sync.Mutex
-	set        map[Package]struct{}
+type ConfigFunc func(Package, Handler, bool)
+
+// Router configures Packages and tracepoints.
+type Router interface {
+	Use(pkg Package, cfg ConfigFunc)
 }
 
-func NewRouter(h Handler, sourceInfo bool) *Router {
-	return &Router{
-		sourceInfo: sourceInfo,
-		handler:    h,
-		pkgmu:      sync.Mutex{},
-		set:        make(map[Package]struct{}),
+type routerimpl struct {
+	pkgmu  sync.RWMutex
+	pkgset map[Package]ConfigFunc
+}
+
+func NewRouter() Router {
+	return &routerimpl{
+		pkgmu:  sync.RWMutex{},
+		pkgset: make(map[Package]ConfigFunc),
 	}
 }
 
 // Use registers a package.
-func (r *Router) Use(pkg Package) {
+func (r *routerimpl) Use(pkg Package, cfg ConfigFunc) {
 	r.pkgmu.Lock()
 	defer r.pkgmu.Unlock()
-	if _, ok := r.set[pkg]; !ok {
-		r.set[pkg] = struct{}{}
+	if _, ok := r.pkgset[pkg]; !ok {
+		r.pkgset[pkg] = cfg
 	}
-	pkg.Bind(r)
 }
 
-func (r *Router) Handler() Handler {
-	return r.handler
+func (r *routerimpl) Connect(h Handler) {
+	r.configure(h, true)
 }
 
-func (r *Router) SourceInfo() bool {
-	return r.sourceInfo
+func (r *routerimpl) Disconnect(h Handler) {
+	r.configure(h, false)
+}
+
+func (r *routerimpl) configure(h Handler, connect bool) {
+	r.pkgmu.RLock()
+	defer r.pkgmu.RUnlock()
+	for pkg, cfg := range r.pkgset {
+		cfg(pkg, h, connect)
+	}
 }

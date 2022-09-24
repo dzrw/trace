@@ -87,6 +87,10 @@ func String(key, value string) Attr {
 	return Attr{key: key, val: value, kind: StringKind}
 }
 
+func Event(text string) Attr {
+	return String("event", text)
+}
+
 // Time returns an Attr for a time.Time.
 func Time(key string, value time.Time) Attr {
 	u := value

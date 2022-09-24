@@ -1,7 +1,15 @@
 package trace
 
 import (
-	"errors"
+	"runtime"
+	"sync"
+)
+
+type PackageFlags int16
+
+const (
+	CaptureGoroutineID PackageFlags = 1 << iota
+	CaptureSourceInfo  PackageFlags = 1 << iota
 )
 
 // Package represents the integration point with third-party packages that
@@ -9,83 +17,118 @@ import (
 // should export a top-level function that returns a package-local instance
 // that implements this interface.
 type Package interface {
-	Bind(*Router)
-	Handler() Handler
-	CaptureSourceInfo() bool
+	Flags() PackageFlags
 
-	// Skip configures the probe to be disabled for traces associated with this package.
-	Skip(Probe)
+	// Connect adds a Handler to a tracepoint.
+	Connect(Handler, Point)
 
-	// Enabled returns whether or not the probe is enabled.
-	Enabled(Probe) bool
+	// Disconnect removes a Handler from a tracepoint.
+	Disconnect(Handler, Point)
 
-	// Registry returns an application-specific mapping of probes to identifiers.
-	Registry(app string) Registry
+	// Enabled returns whether any Handlers are connected to a tracepoint.
+	Enabled(Point) bool
+}
+
+// NewPackage returns a new Package.
+func NewPackage(flags PackageFlags) Package {
+	return &pkgimpl{
+		flags:    flags,
+		mu:       sync.RWMutex{},
+		handlers: make(map[Point]map[Handler]struct{}),
+	}
 }
 
 type pkgimpl struct {
-	r          *Router
-	h          Handler
-	skipset    map[Probe]struct{}
-	registries map[string]Registry
+	flags    PackageFlags
+	mu       sync.RWMutex
+	handlers map[Point]map[Handler]struct{}
 }
 
-// NewPackage returns a new Package that delegates to a Router.
-func NewPackage() Package {
-	return &pkgimpl{
-		skipset:    make(map[Probe]struct{}),
-		registries: make(map[string]Registry),
+func (pkg *pkgimpl) Flags() PackageFlags {
+	return pkg.flags
+}
+
+func (pkg *pkgimpl) Connect(h Handler, tracepoint Point) {
+	pkg.mu.Lock()
+	defer pkg.mu.Unlock()
+	m, ok := pkg.handlers[tracepoint]
+	if !ok {
+		m = make(map[Handler]struct{})
+		pkg.handlers[tracepoint] = m
+	}
+	m[h] = struct{}{}
+}
+
+func (pkg *pkgimpl) Disconnect(h Handler, tracepoint Point) {
+	pkg.mu.Lock()
+	defer pkg.mu.Unlock()
+	if m, ok := pkg.handlers[tracepoint]; ok {
+		delete(m, h)
 	}
 }
 
-// NewPackageWithHandler returns a new Package that uses its own Handler.
-func NewPackageWithHandler(h Handler) Package {
-	return &pkgimpl{
-		h:          h,
-		skipset:    make(map[Probe]struct{}),
-		registries: make(map[string]Registry),
-	}
-}
-
-func (p *pkgimpl) Bind(r *Router) {
-	p.r = r
-}
-
-var ErrMustUsePackage = errors.New("package not configured")
-
-func (p *pkgimpl) Handler() Handler {
-	switch {
-	case p.h != nil:
-		return p.h
-	case p.r != nil:
-		return p.r.Handler()
-	default:
-		panic(ErrMustUsePackage)
-	}
-}
-
-func (p *pkgimpl) CaptureSourceInfo() bool {
-	if p.r != nil {
-		return p.r.SourceInfo()
+func (pkg *pkgimpl) Enabled(tracepoint Point) bool {
+	pkg.mu.RLock()
+	defer pkg.mu.RUnlock()
+	if m, ok := pkg.handlers[tracepoint]; ok {
+		return len(m) > 0
 	}
 	return false
 }
 
-// Skip configures the probe to be disabled for traces associated with this package.
-func (pkg *pkgimpl) Skip(p Probe) {
-	pkg.skipset[p] = struct{}{}
-}
+func (pkg *pkgimpl) log(tr *traceimpl, skip int, level Level, attrs []Attr) {
+	pkg.mu.RLock()
+	defer pkg.mu.RUnlock()
+	if m, ok := pkg.handlers[tr.tp]; ok {
+		for h := range m {
+			if h.Enabled(level) {
+				if (pkg.flags & CaptureGoroutineID) == CaptureGoroutineID {
+					if attrs == nil {
+						attrs = make([]Attr, 0)
+					}
+					gid := __caution__GetGoroutineID()
+					attrs = append(attrs, Uint64("gid", gid))
+				}
+				if (pkg.flags & CaptureSourceInfo) == CaptureSourceInfo {
+					if attrs == nil {
+						attrs = make([]Attr, 0)
+					}
+					_, file, line, _ := runtime.Caller(skip)
+					attrs = append(attrs, String("file", file), Int("line", line))
+				}
 
-func (pkg *pkgimpl) Enabled(p Probe) bool {
-	_, ok := pkg.skipset[p]
-	return !ok
-}
+				arr := [][]Attr{tr.tpAttrs}
+				if attrs != nil {
+					arr = append(arr, attrs)
+				}
 
-func (pkg *pkgimpl) Registry(app string) Registry {
-	a, ok := pkg.registries[app]
-	if !ok {
-		a = NewRegistry()
-		pkg.registries[app] = a
+				h.Log(level, arr)
+			}
+		}
 	}
-	return a
+}
+
+func (pkg *pkgimpl) begin(tr *traceimpl) {
+	pkg.mu.RLock()
+	defer pkg.mu.RUnlock()
+	if m, ok := pkg.handlers[tr.tp]; ok {
+		for h := range m {
+			h.Log(DebugLevel, [][]Attr{{
+				Event("begin trace"),
+				String("id", tr.ID().String()),
+			}})
+		}
+	}
+}
+
+func (pkg *pkgimpl) close(tp Point, tr Trace, attrs []Attr) {
+	pkg.mu.RLock()
+	defer pkg.mu.RUnlock()
+	if m, ok := pkg.handlers[tp]; ok {
+		if f, ok := tr.(closer); ok {
+			for h := range m {
+				f.close(h, attrs)
+			}
+		}
+	}
 }
