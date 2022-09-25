@@ -1,22 +1,26 @@
 package trace
 
+// Registry provides a one-to-one mapping from Tracepoints to
+// application-specific identifiers. Applications should use this type to
+// help do stuff.
 type Registry interface {
 	Count() int
-	Define(Probe, string)
-	IsDefined(Probe) bool
-	IdentifierFor(Probe) (string, bool)
-	ProbeFor(string) (Probe, bool)
+	Define(Tracepoint, string)
+	Undefine(Tracepoint)
+	IsDefined(Tracepoint) bool
+	IdentifierFor(Tracepoint) (string, bool)
+	TracepointFor(string) (Tracepoint, bool)
 }
 
 type registry struct {
-	u map[Probe]string
-	v map[string]Probe
+	u map[Tracepoint]string
+	v map[string]Tracepoint
 }
 
 func NewRegistry() Registry {
 	return &registry{
-		u: make(map[Probe]string),
-		v: make(map[string]Probe),
+		u: make(map[Tracepoint]string),
+		v: make(map[string]Tracepoint),
 	}
 }
 
@@ -24,21 +28,29 @@ func (m *registry) Count() int {
 	return len(m.u)
 }
 
-func (m *registry) Define(p Probe, id string) {
-	m.u[p] = id
-	m.v[id] = p
+func (m *registry) Define(tp Tracepoint, id string) {
+	m.u[tp] = id
+	m.v[id] = tp
 }
 
-func (m *registry) IsDefined(p Probe) bool {
-	_, ok := m.u[p]
+func (m *registry) Undefine(tp Tracepoint) {
+	if id, ok := m.u[tp]; ok {
+		delete(m.u, tp)
+		delete(m.v, id)
+	}
+}
+
+func (m *registry) IsDefined(tp Tracepoint) bool {
+	_, ok := m.u[tp]
 	return ok
 }
 
-func (m *registry) IdentifierFor(p Probe) (id string, ok bool) {
-	id, ok = m.u[p]
+func (m *registry) IdentifierFor(tp Tracepoint) (id string, ok bool) {
+	id, ok = m.u[tp]
 	return
 }
-func (m *registry) ProbeFor(id string) (p Probe, ok bool) {
-	p, ok = m.v[id]
+
+func (m *registry) TracepointFor(id string) (tp Tracepoint, ok bool) {
+	tp, ok = m.v[id]
 	return
 }

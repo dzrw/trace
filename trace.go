@@ -2,28 +2,27 @@ package trace
 
 import (
 	"time"
-
-	"github.com/segmentio/ksuid"
 )
 
 type Trace interface {
-	ID() ksuid.KSUID        // ID returns the unique identifier for the trace
+	Site() Tracepoint       // Site returns the tracepoint that originated this trace.
+	ID() uint64             // ID returns the unique identifier for the trace
 	Elapsed() time.Duration // Elapsed returns the time elapsed since the trace started.
 
 	// Close closes the trace.
 	Close(attrs ...Attr)
 
 	// Error captures an event associated with this trace.
-	Error(attrs ...Attr)
+	Error(event string, attrs ...Attr)
 
 	// Warn captures an event associated with this trace.
-	Warn(attrs ...Attr)
+	Warn(event string, attrs ...Attr)
 
 	// Info captures an event associated with this trace.
-	Info(attrs ...Attr)
+	Info(event string, attrs ...Attr)
 
 	// Debug captures an event associated with this trace.
-	Debug(attrs ...Attr)
+	Debug(event string, attrs ...Attr)
 
 	// Log an event associated with this trace.
 	Log(level Level, attrs ...Attr)
@@ -32,68 +31,39 @@ type Trace interface {
 	// an event associated with the trace at the AssertionViolated level;
 	// otherwise, log an event at the specified level.
 	Assert(level Level, attrs ...Attr)
-
-	// Count updates a counter associated with this trace. Counters are flushed when
-	// the span is closed. If telemetry is not configured, this operation is a nop.
-	Count(key Metric, delta int64)
-
-	// Gauge updates a gauge associated with this trace. Gauges are flushed when
-	// the span is closed. If telemetry is not configured, this operation is a nop.
-	Gauge(key Metric, value int64)
-
-	// Duration updates a timespan associated with this trace. Counters are flushed when
-	// the span is closed. If telemetry is not configured, this operation is a nop.
-	Duration(key Metric, d time.Duration)
-
-	// Histogram updates a log-linear histogram associated with this trace. Histograms are
-	// flushed when the span is closed. If telemetry is not configured, this operation
-	// is a nop.
-	Histogram(key Metric, sample int64)
 }
 
 var _ = Trace(&noptraceimpl{})
 var _ = Trace(&traceimpl{})
-
-type closer interface {
-	close(Handler, []Attr)
-}
-
-var _ = closer(&noptraceimpl{})
-var _ = closer(&traceimpl{})
 
 type noptraceimpl struct{}
 
 // singleton
 var noptrace = &noptraceimpl{}
 
-func (*noptraceimpl) ID() ksuid.KSUID                      { return ksuid.Nil }
-func (*noptraceimpl) Elapsed() time.Duration               { return time.Duration(0) }
-func (*noptraceimpl) Close(attrs ...Attr)                  {}
-func (*noptraceimpl) Error(attrs ...Attr)                  {}
-func (*noptraceimpl) Warn(attrs ...Attr)                   {}
-func (*noptraceimpl) Info(attrs ...Attr)                   {}
-func (*noptraceimpl) Debug(attrs ...Attr)                  {}
-func (*noptraceimpl) Log(level Level, attrs ...Attr)       {}
-func (*noptraceimpl) Assert(level Level, attrs ...Attr)    {}
-func (*noptraceimpl) Count(key Metric, delta int64)        {}
-func (*noptraceimpl) Gauge(key Metric, value int64)        {}
-func (*noptraceimpl) Duration(key Metric, d time.Duration) {}
-func (*noptraceimpl) Histogram(key Metric, sample int64)   {}
-func (*noptraceimpl) close(Handler, []Attr)                {}
+func (*noptraceimpl) Site() Tracepoint                  { return nil }
+func (*noptraceimpl) ID() uint64                        { return 0 }
+func (*noptraceimpl) Elapsed() time.Duration            { return time.Duration(0) }
+func (*noptraceimpl) Close(attrs ...Attr)               {}
+func (*noptraceimpl) Error(event string, attrs ...Attr) {}
+func (*noptraceimpl) Warn(event string, attrs ...Attr)  {}
+func (*noptraceimpl) Info(event string, attrs ...Attr)  {}
+func (*noptraceimpl) Debug(event string, attrs ...Attr) {}
+func (*noptraceimpl) Log(level Level, attrs ...Attr)    {}
+func (*noptraceimpl) Assert(level Level, attrs ...Attr) {}
 
 type traceimpl struct {
-	pkg     *pkgimpl
-	tp      *tracepoint
-	id      ksuid.KSUID
-	then    time.Time
-	tpAttrs []Attr
-
-	counts    map[Metric]int64
-	gauges    map[Metric]int64
-	durations map[Metric]time.Duration
+	tp    *tracepoint
+	id    uint64
+	then  time.Time
+	attrs []Attr
 }
 
-func (tr *traceimpl) ID() ksuid.KSUID {
+func (tr *traceimpl) Site() Tracepoint {
+	return tr.tp
+}
+
+func (tr *traceimpl) ID() uint64 {
 	return tr.id
 }
 
@@ -102,27 +72,27 @@ func (tr *traceimpl) Elapsed() time.Duration {
 }
 
 func (tr *traceimpl) Close(attrs ...Attr) {
-	tr.pkg.close(tr.tp, tr, attrs)
+	tr.tp.finishTrace(tr, attrs)
 }
 
-func (tr *traceimpl) Error(attrs ...Attr) {
-	tr.pkg.log(tr, 2, ErrorLevel, attrs)
+func (tr *traceimpl) Error(event string, attrs ...Attr) {
+	tr.tp.log(tr, 2, ErrorLevel, append(attrs, Event(event)))
 }
 
-func (tr *traceimpl) Warn(attrs ...Attr) {
-	tr.pkg.log(tr, 2, WarnLevel, attrs)
+func (tr *traceimpl) Warn(event string, attrs ...Attr) {
+	tr.tp.log(tr, 2, WarnLevel, append(attrs, Event(event)))
 }
 
-func (tr *traceimpl) Info(attrs ...Attr) {
-	tr.pkg.log(tr, 2, InfoLevel, attrs)
+func (tr *traceimpl) Info(event string, attrs ...Attr) {
+	tr.tp.log(tr, 2, InfoLevel, append(attrs, Event(event)))
 }
 
-func (tr *traceimpl) Debug(attrs ...Attr) {
-	tr.pkg.log(tr, 2, DebugLevel, attrs)
+func (tr *traceimpl) Debug(event string, attrs ...Attr) {
+	tr.tp.log(tr, 2, DebugLevel, append(attrs, Event(event)))
 }
 
 func (tr *traceimpl) Log(level Level, attrs ...Attr) {
-	tr.pkg.log(tr, 2, level, attrs)
+	tr.tp.log(tr, 2, level, attrs)
 }
 
 func (tr *traceimpl) Assert(level Level, attrs ...Attr) {
@@ -132,57 +102,5 @@ func (tr *traceimpl) Assert(level Level, attrs ...Attr) {
 			break
 		}
 	}
-	tr.pkg.log(tr, 2, level, attrs)
-}
-
-func (tr *traceimpl) Count(key Metric, delta int64) {
-	if tr.counts == nil {
-		tr.counts = make(map[Metric]int64)
-	}
-	val := delta
-	if v, ok := tr.counts[key]; ok {
-		val = val + v
-	}
-	tr.counts[key] = val
-}
-
-func (tr *traceimpl) Gauge(key Metric, value int64) {
-	if tr.gauges == nil {
-		tr.gauges = make(map[Metric]int64)
-	}
-	tr.gauges[key] = value
-}
-
-func (tr *traceimpl) Duration(key Metric, d time.Duration) {
-	if tr.durations == nil {
-		tr.durations = make(map[Metric]time.Duration)
-	}
-	tr.durations[key] = d
-}
-
-func (tr *traceimpl) Histogram(key Metric, sample int64) {
-	// TODO: https://github.com/openhistogram/libcircllhist
-}
-
-func (tr *traceimpl) close(h Handler, attrs []Attr) {
-	if src := tr.counts; src != nil {
-		for m, v := range src {
-			h.Count(m, v)
-		}
-	}
-	if src := tr.gauges; src != nil {
-		for m, v := range src {
-			h.Gauge(m, v)
-		}
-	}
-	if src := tr.durations; src != nil {
-		for m, v := range src {
-			h.Duration(m, v)
-		}
-	}
-	h.Log(DebugLevel, [][]Attr{{
-		Event("close trace"),
-		String("id", tr.ID().String()),
-		Duration("elapsed", tr.Elapsed()),
-	}, attrs})
+	tr.tp.log(tr, 2, level, attrs)
 }
